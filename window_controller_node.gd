@@ -2,6 +2,8 @@ extends Node
 
 @export var enable_drag := true
 @export var enable_topmost := true
+@onready var cat_root = get_parent()
+
 
 var dragging := false
 var drag_offset := Vector2.ZERO
@@ -10,7 +12,7 @@ var mouse_passthrough := false
 
 func _ready():
 	_setup_window()
-	set_mouse_passthrough(true)
+	set_mouse_passthrough(false)
 
 
 
@@ -88,7 +90,10 @@ func _clamp_to_screen():
 
 
 func _on_hit_area_area_2d_input_event(viewport: Node, event: InputEvent, shape_idx: int) -> void:
-	pass # Replace with function body.
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		if cat_root.has_method("start_idle"):
+			print("tap")
+			cat_root.on_tap_cat()
 	
 	
 func _input(event):
