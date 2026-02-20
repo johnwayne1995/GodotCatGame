@@ -3,41 +3,48 @@ extends Node2D
 enum State { IDLE, RUN }
 
 # ---------------- 配置 ----------------
-var max_speed_x = 10
-var max_speed_y = 5
+var max_speed_x = 10.0
+var max_speed_y = 5.0
 var slow_down_distance = 150.0
 var idle_time_range = Vector2(1.0, 3.0)
-var run_time_range = Vector2(2.0, 5.0)
-
+# 跟随毛线球（用「球到猫窗矩形」的距离，稳定不抖；resume > stop 做滞后，防止来回切）
+var follow_chase_speed = 28.0          # 跟随时的最大速度
+var follow_stop_distance = 20.0       # 球到猫窗距离小于此→判定追到、进待机（越小要贴得越近才 idle）
+var follow_resume_distance = 50.0    # 待机时球到猫窗距离大于此→再开始追（须 > stop 才有滞后）
 # ---------------- 状态 ----------------
 var state = State.RUN
-var axis = "x"  # 本次移动轴，"x" 或 "y"
+var axis = "x"
 var direction = 1
 
 var current_speed = 0.0
 var target_speed = 0.0
 
 var idle_timer = 0.0
-var run_timer = 0.0
 
 # ---------------- 节点 ----------------
 var screen_size: Vector2
 var window_size: Vector2
 var sprite: AnimatedSprite2D
+var yarn_ball_launcher: Node  # 用于获取毛线球中心位置
 
 # ---------------- 初始化 ----------------
 func _ready():
 	randomize()
-	
+
 	sprite = get_node("CatSprite_AnimatedSprite2D")
 	if sprite == null:
 		push_error("节点 CatSprite_AnimatedSprite2D 未找到！")
 		return
 
-	screen_size = DisplayServer.screen_get_size()
-	window_size = Vector2(DisplayServer.window_get_size())
+	yarn_ball_launcher = get_node_or_null("YarnBallLauncher")
+	if yarn_ball_launcher == null:
+		push_warning("未找到 YarnBallLauncher，猫将不会跟随毛线球")
 
-	start_running()
+	screen_size = DisplayServer.screen_get_size()
+	window_size = Vector2(get_window().size)
+
+	state = State.RUN
+	target_speed = follow_chase_speed * 0.5
 
 func _process(delta):
 	update_behavior(delta)
@@ -46,139 +53,194 @@ func _process(delta):
 	update_animation_speed()
 	update_animation()
 
-# ---------------- 行为控制 ----------------
-func update_behavior(delta):
-	if state == State.RUN:
-		run_timer -= delta
-		if run_timer <= 0:
-			start_idle()
-	elif state == State.IDLE:
+# ---------------- 行为控制（跟随毛线球） ----------------
+func update_behavior(delta: float) -> void:
+	# 球被弹开后等 N 秒才允许追，这段时间猫待机并一直看向球
+	if yarn_ball_launcher != null and yarn_ball_launcher.has_method("can_cat_chase") and !yarn_ball_launcher.can_cat_chase():
+		state = State.IDLE
+		target_speed = 0.0
+		_face_ball_idle()
+		return
+
+	if state == State.IDLE:
 		idle_timer -= delta
 		if idle_timer <= 0:
-			start_running()
+			_try_resume_follow()
+		return
 
-func start_running():
-	state = State.RUN
-	run_timer = randf_range(run_time_range.x, run_time_range.y)
+	# RUN：球到猫窗矩形距离 < stop → 追到，进待机（用矩形距离，不依赖参考点，不抖）
+	if yarn_ball_launcher != null and yarn_ball_launcher.has_method("get_yarn_ball_center"):
+		var ball_center: Vector2 = yarn_ball_launcher.get_yarn_ball_center()
+		var dist: float = _distance_ball_to_cat_rect(ball_center)
+		if dist < follow_stop_distance:
+			_start_idle_at_ball()
 
-	# 随机选择移动轴
-	axis = "x" if randf() > 0.5 else "y"
-	direction = 1 if randf() > 0.5 else -1
+func _try_resume_follow() -> void:
+	if yarn_ball_launcher == null or !yarn_ball_launcher.has_method("get_yarn_ball_center"):
+		state = State.RUN
+		target_speed = follow_chase_speed * 0.5
+		return
+	if yarn_ball_launcher.has_method("can_cat_chase") and !yarn_ball_launcher.can_cat_chase():
+		return
+	var ball_center: Vector2 = yarn_ball_launcher.get_yarn_ball_center()
+	var dist: float = _distance_ball_to_cat_rect(ball_center)
+	if dist > follow_resume_distance:
+		state = State.RUN
+		target_speed = follow_chase_speed * 0.5
 
-	# 设置目标速度
-	if axis == "x":
-		target_speed = randf_range(max_speed_x * 0.6, max_speed_x)
+## 球心到猫窗矩形的最短距离（在矩形内为 0），判定追到/再追只用这一个量，稳定
+func _distance_ball_to_cat_rect(ball_center: Vector2) -> float:
+	var pos: Vector2 = Vector2(get_window().position)
+	var closest_x: float = clampf(ball_center.x, pos.x, pos.x + window_size.x)
+	var closest_y: float = clampf(ball_center.y, pos.y, pos.y + window_size.y)
+	return ball_center.distance_to(Vector2(closest_x, closest_y))
+
+## 根据球相对猫的位置选朝向并播对应 idle（idle_left / idle_right / idle_up / idle_down）
+func _face_ball_idle() -> void:
+	if yarn_ball_launcher == null or !yarn_ball_launcher.has_method("get_yarn_ball_center"):
+		return
+	var ball_center: Vector2 = yarn_ball_launcher.get_yarn_ball_center()
+	var cat_center: Vector2 = Vector2(get_window().position) + window_size * 0.5
+	var dx: float = ball_center.x - cat_center.x
+	var dy: float = ball_center.y - cat_center.y
+	if abs(dx) >= abs(dy):
+		axis = "x"
+		direction = 1 if dx > 0 else -1
+		sprite.play("idle_right" if direction > 0 else "idle_left")
 	else:
-		target_speed = randf_range(max_speed_y * 0.5, max_speed_y)
+		axis = "y"
+		direction = 1 if dy > 0 else -1
+		sprite.play("idle_down" if direction > 0 else "idle_up")
 
-	# 播放对应动画
-	if axis == "x":
-		sprite.play("run_right" if direction >= 0 else "run_left")
+## 根据球相对猫的位置返回猫的参考点：球在右→猫右下角，球在左→猫左下角，球在下→猫正下方，球在上→猫正上方
+func _get_cat_reference_point(ball_center: Vector2) -> Vector2:
+	var pos: Vector2 = Vector2(get_window().position)
+	var cat_center: Vector2 = pos + window_size * 0.5
+	var dx: float = ball_center.x - cat_center.x
+	var dy: float = ball_center.y - cat_center.y
+	if abs(dx) > abs(dy):
+		if dx > 0:
+			return pos + Vector2(window_size.x, window_size.y)
+		else:
+			return pos + Vector2(0, window_size.y)
 	else:
-		sprite.play("run_down" if direction >= 0 else "run_up")
+		if dy > 0:
+			return pos + Vector2(window_size.x * 0.5, window_size.y)
+		else:
+			return pos + Vector2(window_size.x * 0.5, 0)
+
+func _start_idle_at_ball() -> void:
+	state = State.IDLE
+	idle_timer = randf_range(idle_time_range.x, idle_time_range.y)
+	target_speed = 0.0
+	if axis == "x":
+		sprite.play("idle_right" if direction >= 0 else "idle_left")
+	else:
+		sprite.play("idle_down" if direction >= 0 else "idle_up")
 
 func on_tap_cat():
 	state = State.IDLE
 	idle_timer = randf_range(idle_time_range.x, idle_time_range.y)
 	target_speed = 0.0
-	run_timer = 0.0   # 清空运行计时
 	axis = "y"
 	direction = 1
-	sprite.play("idle_down")
-	
+	sprite.play("idle_tap")
+	var timer := get_tree().create_timer(2.0)
+	timer.timeout.connect(start_idle)
 
 func start_idle():
 	state = State.IDLE
 	idle_timer = randf_range(idle_time_range.x, idle_time_range.y)
 	target_speed = 0.0
-
 	if axis == "x":
-		if  direction >= 0:
-			sprite.play("idle_right")
-		else:
-			sprite.play("idle_left")
+		sprite.play("idle_right" if direction >= 0 else "idle_left")
 	else:
-		if  direction >= 0:
-			sprite.play("idle_down")
-		else:
-			sprite.play("idle_up")
+		sprite.play("idle_down" if direction >= 0 else "idle_up")
 
 # ---------------- 平滑加减速 ----------------
-func update_speed(delta):
+func update_speed(delta: float) -> void:
 	current_speed = move_toward(current_speed, target_speed, 40.0 * delta)
 
-# ---------------- 移动逻辑 ----------------
-func update_movement():
-	var pos = Vector2(DisplayServer.window_get_position())
+# ---------------- 移动逻辑（朝毛线球中心移动） ----------------
+func update_movement() -> void:
+	var win = get_window()
+	var pos = Vector2(win.position)
+	var cat_center = pos + window_size * 0.5
 
-	# ---------------- 计算距离边界 ----------------
+	if state == State.IDLE:
+		win.position = Vector2i(int(pos.x), int(pos.y))
+		return
+	if yarn_ball_launcher != null and yarn_ball_launcher.has_method("can_cat_chase") and !yarn_ball_launcher.can_cat_chase():
+		win.position = Vector2i(int(pos.x), int(pos.y))
+		return
+
+	# 获取毛线球中心；若无则保持原位
+	var target_center: Vector2
+	if yarn_ball_launcher != null and yarn_ball_launcher.has_method("get_yarn_ball_center"):
+		target_center = yarn_ball_launcher.get_yarn_ball_center()
+	else:
+		win.position = Vector2i(int(pos.x), int(pos.y))
+		return
+
+	var to_target = target_center - cat_center
+	var dist = to_target.length()
+	if dist < 1.0:
+		win.position = Vector2i(int(pos.x), int(pos.y))
+		return
+
+	# 根据目标方向决定轴与方向、动画
+	var dx = to_target.x
+	var dy = to_target.y
+	if abs(dx) >= abs(dy):
+		axis = "x"
+		direction = 1 if dx > 0 else -1
+		sprite.play("run_right" if direction > 0 else "run_left")
+	else:
+		axis = "y"
+		direction = 1 if dy > 0 else -1
+		sprite.play("run_down" if direction > 0 else "run_up")
+
+	# 跟随速度：接近时减速，靠近屏幕边缘也减速
+	var max_speed = follow_chase_speed
 	if axis == "x":
-		var distance_to_left = pos.x
-		var distance_to_right = screen_size.x - (pos.x + window_size.x)
+		var edge = slow_down_distance
+		var dist_right = screen_size.x - (pos.x + window_size.x)
+		var dist_left = pos.x
+		if direction > 0 and dist_right < edge:
+			max_speed = follow_chase_speed * (dist_right / edge)
+		elif direction < 0 and dist_left < edge:
+			max_speed = follow_chase_speed * (dist_left / edge)
+	else:
+		var edge = slow_down_distance
+		var dist_bottom = screen_size.y - (pos.y + window_size.y)
+		var dist_top = pos.y
+		if direction > 0 and dist_bottom < edge:
+			max_speed = follow_chase_speed * (dist_bottom / edge)
+		elif direction < 0 and dist_top < edge:
+			max_speed = follow_chase_speed * (dist_top / edge)
 
-		if direction > 0 and distance_to_right < slow_down_distance:
-			target_speed = max_speed_x * (distance_to_right / slow_down_distance)
-		elif direction < 0 and distance_to_left < slow_down_distance:
-			target_speed = max_speed_x * (distance_to_left / slow_down_distance)
+	target_speed = max_speed
 
-		pos.x += direction * current_speed
+	# 朝目标移动，速度不超过 max_speed
+	var move_len = min(current_speed, dist)
+	var step = to_target.normalized() * move_len
+	pos += step
 
-		# 到边界掉头
-		if pos.x + window_size.x >= screen_size.x:
-			pos.x = screen_size.x - window_size.x
-			direction = -1
-			target_speed = randf_range(max_speed_x * 0.6, max_speed_x)
-			sprite.play("run_left")
-		elif pos.x <= 0:
-			pos.x = 0
-			direction = 1
-			target_speed = randf_range(max_speed_x * 0.6, max_speed_x)
-			sprite.play("run_right")
+	# 限制在屏幕内
+	pos.x = clampf(pos.x, 0, screen_size.x - window_size.x)
+	pos.y = clampf(pos.y, 0, screen_size.y - window_size.y)
 
-	else:  # axis == "y"
-		var distance_to_top = pos.y
-		var distance_to_bottom = screen_size.y - (pos.y + window_size.y)
-
-		if direction > 0 and distance_to_bottom < slow_down_distance:
-			target_speed = max_speed_y * (distance_to_bottom / slow_down_distance)
-		elif direction < 0 and distance_to_top < slow_down_distance:
-			target_speed = max_speed_y * (distance_to_top / slow_down_distance)
-
-		pos.y += direction * current_speed
-
-		# 到边界掉头
-		if pos.y + window_size.y >= screen_size.y:
-			pos.y = screen_size.y - window_size.y
-			direction = -1
-			target_speed = randf_range(max_speed_y * 0.5, max_speed_y)
-			sprite.play("run_up")
-		elif pos.y <= 0:
-			pos.y = 0
-			direction = 1
-			target_speed = randf_range(max_speed_y * 0.5, max_speed_y)
-			sprite.play("run_down")
-
-	DisplayServer.window_set_position(pos)
+	win.position = Vector2i(int(pos.x), int(pos.y))
 
 # ---------------- 动画速度同步 ----------------
-func update_animation_speed():
-	sprite.speed_scale = clamp(
-	current_speed / (max_speed_x if axis == "x" else max_speed_y),
-	0.5,
-	2.0
-)
+func update_animation_speed() -> void:
+	var ref_speed = max_speed_x if axis == "x" else max_speed_y
+	sprite.speed_scale = clamp(current_speed / ref_speed, 0.5, 2.0)
 
 # ---------------- 动画更新 ----------------
-func update_animation():
-	if current_speed < 0.01:
-		if sprite.animation != "idle":
-			if axis == "x":
-				if  direction >= 0:
-					sprite.play("idle_right")
-				else:
-					sprite.play("idle_left")
-			else:
-				if  direction >= 0:
-					sprite.play("idle_down")
-				else:
-					sprite.play("idle_up")
+func update_animation() -> void:
+	if current_speed < 0.01 and sprite.animation.begins_with("run"):
+		if axis == "x":
+			sprite.play("idle_right" if direction >= 0 else "idle_left")
+		else:
+			sprite.play("idle_down" if direction >= 0 else "idle_up")

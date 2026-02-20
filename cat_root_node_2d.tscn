@@ -4,12 +4,14 @@
 [ext_resource type="Script" uid="uid://doll2sifr3axf" path="res://window_controller_node.gd" id="2_yb8yl"]
 [ext_resource type="Texture2D" uid="uid://2fk6st8je5xq" path="res://Resources/Sprite/idle_F.png" id="3_3rxeb"]
 [ext_resource type="Texture2D" uid="uid://b7m6lkdgn1ev" path="res://Resources/Sprite/idle_left.png" id="4_joqja"]
+[ext_resource type="Script" uid="uid://7gctgk144ni5" path="res://yarn_ball_launcher.gd" id="4_launcher"]
 [ext_resource type="Texture2D" uid="uid://cajxx6ussjw1y" path="res://Resources/Sprite/run_down_1.png" id="4_yb5oa"]
 [ext_resource type="Texture2D" uid="uid://ddbsy7ikhf8ey" path="res://Resources/Sprite/idle_right.png" id="5_bl8uq"]
 [ext_resource type="Texture2D" uid="uid://b01or75eyslub" path="res://Resources/Sprite/run_down_2.png" id="5_um0sn"]
 [ext_resource type="Texture2D" uid="uid://vsbrqapjmvpo" path="res://Resources/Sprite/idle_up.png" id="6_g4b3x"]
 [ext_resource type="Texture2D" uid="uid://cxjr8eb4ov12j" path="res://Resources/Sprite/run_down_3.png" id="6_joqja"]
 [ext_resource type="Texture2D" uid="uid://cccrf3p4aglev" path="res://Resources/Sprite/run_down_4.png" id="7_bl8uq"]
+[ext_resource type="Texture2D" uid="uid://c7igwc7gkym0i" path="res://Resources/Sprite/idle_tap_1.png" id="7_msymx"]
 [ext_resource type="Texture2D" uid="uid://c5gff2e4c1bjt" path="res://Resources/Sprite/runL_1.png" id="8_yb5oa"]
 [ext_resource type="Texture2D" uid="uid://c6i4huxqpj0l1" path="res://Resources/Sprite/runL_2.png" id="9_um0sn"]
 [ext_resource type="Texture2D" uid="uid://b0hlpspogrf86" path="res://Resources/Sprite/runL_3.png" id="10_joqja"]
@@ -48,6 +50,14 @@ animations = [{
 }],
 "loop": true,
 "name": &"idle_right",
+"speed": 5.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("7_msymx")
+}],
+"loop": true,
+"name": &"idle_tap",
 "speed": 5.0
 }, {
 "frames": [{
@@ -141,9 +151,12 @@ script = ExtResource("1_coyk4")
 [node name="WindowController_Node" type="Node" parent="." unique_id=944797985]
 script = ExtResource("2_yb8yl")
 
+[node name="YarnBallLauncher" type="Node" parent="." unique_id=1273939368]
+script = ExtResource("4_launcher")
+
 [node name="CatSprite_AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=1835799935]
 sprite_frames = SubResource("SpriteFrames_ybq17")
-animation = &"idle_up"
+animation = &"idle_tap"
 autoplay = "run_left"
 
 [node name="HitArea_Area2D" type="Area2D" parent="CatSprite_AnimatedSprite2D" unique_id=654064635]
