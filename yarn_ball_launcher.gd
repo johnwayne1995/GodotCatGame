@@ -1,6 +1,8 @@
 extends Node
 ## 创建并持有毛线球独立窗口，供猫获取毛线球位置以跟随
 
+const BALL_TEXTURE = preload("res://Resources/Sprite/ball.png")
+
 const YARN_BALL_WINDOW_SIZE = Vector2i(200, 200)
 
 ## 球被弹开后，隔几秒才允许猫开始追（秒）
@@ -21,6 +23,8 @@ func _build_yarn_ball_window() -> void:
 	yarn_ball_window.title = "Yarn"
 	yarn_ball_window.borderless = true
 	yarn_ball_window.transparent = true
+	# 子 Window 不会自动继承主窗口/项目里的 transparent_bg；GL 兼容 + 系统透明窗若不设，会错误清除/混合导致闪烁且精灵 alpha 异常
+	yarn_ball_window.transparent_bg = true
 	yarn_ball_window.unresizable = true
 	yarn_ball_window.size = YARN_BALL_WINDOW_SIZE
 	yarn_ball_window.always_on_top = true
@@ -29,9 +33,7 @@ func _build_yarn_ball_window() -> void:
 	root.set_script(load("res://yarn_ball_controller.gd") as GDScript)
 
 	var sprite := Sprite2D.new()
-	var tex = load("res://Resources/Sprite/ball.png") as Texture2D
-	if tex:
-		sprite.texture = tex
+	sprite.texture = BALL_TEXTURE
 	sprite.position = Vector2(YARN_BALL_WINDOW_SIZE.x / 2, YARN_BALL_WINDOW_SIZE.y / 2)
 	root.add_child(sprite)
 
@@ -48,17 +50,10 @@ func _build_yarn_ball_window() -> void:
 	get_tree().root.call_deferred("add_child", yarn_ball_window)
 	yarn_ball_window.call_deferred("show")
 
-func _process(_delta: float) -> void:
-	_update_yarn_ball_window_priority()
-
-## 两窗口都置顶（高于其他应用）。不抢焦点，否则会一直占着激活态导致无法在其他应用里打字。
-func _update_yarn_ball_window_priority() -> void:
-	if !is_instance_valid(yarn_ball_window):
-		return
-	var cat_win = get_window()
-	# 两窗口都保持置顶，高于系统其他应用；不再每帧 grab_focus，避免抢其他应用焦点
-	yarn_ball_window.always_on_top = true
-	cat_win.always_on_top = true
+	# 只设置一次猫窗置顶（毛球窗已在上面设过）；每帧改 always_on_top 在 Windows + GL 透明窗上容易触发合成器闪烁
+	var cat_win := get_window()
+	if cat_win != null:
+		cat_win.always_on_top = true
 
 ## 球被鼠标弹开时由毛球脚本调用，开始“几秒内不许猫追”的计时
 func on_ball_kicked() -> void:

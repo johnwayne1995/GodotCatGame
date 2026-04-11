@@ -22,9 +22,12 @@ var _sprite: Node2D
 ## 顶部禁区高度（球心 y 小于此即算在顶部），用根视口高度（猫窗高度）
 var _top_zone_height: float = 720.0
 
+func _enter_tree() -> void:
+	# 尽早启用，避免首帧以不透明背景清除再与系统透明窗叠加（GL 兼容下常见闪烁）
+	get_viewport().transparent_bg = true
+
 func _ready() -> void:
 	randomize()
-	get_viewport().transparent_bg = true
 	screen_size = DisplayServer.screen_get_size()
 	var win = get_window()
 	window_size = Vector2(win.size)
