@@ -3,7 +3,8 @@ extends Node
 
 const BALL_TEXTURE = preload("res://Resources/Sprite/ball.png")
 
-const YARN_BALL_WINDOW_SIZE = Vector2i(200, 200)
+## 与猫窗设计宽度 720 成比例（猫窗变小时等比缩小）
+const YARN_BALL_BASE_SIZE := 200
 
 ## 球被弹开后，隔几秒才允许猫开始追（秒）
 @export var chase_delay_after_kick: float = 1.0
@@ -26,7 +27,8 @@ func _build_yarn_ball_window() -> void:
 	# 子 Window 不会自动继承主窗口/项目里的 transparent_bg；GL 兼容 + 系统透明窗若不设，会错误清除/混合导致闪烁且精灵 alpha 异常
 	yarn_ball_window.transparent_bg = true
 	yarn_ball_window.unresizable = true
-	yarn_ball_window.size = YARN_BALL_WINDOW_SIZE
+	var init_ball := Vector2i(YARN_BALL_BASE_SIZE, YARN_BALL_BASE_SIZE)
+	yarn_ball_window.size = init_ball
 	yarn_ball_window.always_on_top = true
 
 	var root := Node2D.new()
@@ -34,7 +36,7 @@ func _build_yarn_ball_window() -> void:
 
 	var sprite := Sprite2D.new()
 	sprite.texture = BALL_TEXTURE
-	sprite.position = Vector2(YARN_BALL_WINDOW_SIZE.x / 2, YARN_BALL_WINDOW_SIZE.y / 2)
+	sprite.position = Vector2(init_ball.x * 0.5, init_ball.y * 0.5)
 	root.add_child(sprite)
 
 	yarn_ball_window.add_child(root)
@@ -42,7 +44,7 @@ func _build_yarn_ball_window() -> void:
 	# 初始位置：屏幕中部偏上，避免和猫重叠
 	var screen = DisplayServer.screen_get_size()
 	yarn_ball_window.position = Vector2i(
-		screen.x / 2 - YARN_BALL_WINDOW_SIZE.x / 2,
+		screen.x / 2 - init_ball.x / 2,
 		screen.y / 4
 	)
 
@@ -54,6 +56,34 @@ func _build_yarn_ball_window() -> void:
 	var cat_win := get_window()
 	if cat_win != null:
 		cat_win.always_on_top = true
+
+
+## 与猫窗同步缩放：ratio = 当前猫窗宽度 / 720
+func apply_ball_scale_ratio(ratio: float) -> void:
+	if !is_instance_valid(yarn_ball_window):
+		return
+	ratio = maxf(ratio, 0.05)
+	var bs := Vector2i(int(round(YARN_BALL_BASE_SIZE * ratio)), int(round(YARN_BALL_BASE_SIZE * ratio)))
+	yarn_ball_window.size = bs
+	var root_n: Node = yarn_ball_window.get_child(0)
+	if root_n == null:
+		return
+	var sprite: Sprite2D = null
+	if root_n.get_child_count() > 0:
+		sprite = root_n.get_child(0) as Sprite2D
+	if sprite != null:
+		sprite.scale = Vector2(ratio, ratio)
+		sprite.position = Vector2(bs) * 0.5
+	if root_n.has_method("apply_physics_scale"):
+		root_n.apply_physics_scale(ratio)
+	if root_n.has_method("set_top_zone_from_cat_height"):
+		root_n.set_top_zone_from_cat_height(float(get_window().size.y))
+	var screen := DisplayServer.screen_get_size()
+	var p := yarn_ball_window.position
+	p.x = clampi(p.x, 0, maxi(screen.x - bs.x, 0))
+	p.y = clampi(p.y, 0, maxi(screen.y - bs.y, 0))
+	yarn_ball_window.position = p
+
 
 ## 球被鼠标弹开时由毛球脚本调用，开始“几秒内不许猫追”的计时
 func on_ball_kicked() -> void:

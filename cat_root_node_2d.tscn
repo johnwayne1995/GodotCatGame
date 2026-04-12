@@ -5,6 +5,7 @@
 [ext_resource type="Texture2D" uid="uid://2fk6st8je5xq" path="res://Resources/Sprite/idle_F.png" id="3_3rxeb"]
 [ext_resource type="Texture2D" uid="uid://b7m6lkdgn1ev" path="res://Resources/Sprite/idle_left.png" id="4_joqja"]
 [ext_resource type="Script" uid="uid://7gctgk144ni5" path="res://yarn_ball_launcher.gd" id="4_launcher"]
+[ext_resource type="Script" path="res://tray_status_controller.gd" id="23_tray"]
 [ext_resource type="Texture2D" uid="uid://cajxx6ussjw1y" path="res://Resources/Sprite/run_down_1.png" id="4_yb5oa"]
 [ext_resource type="Texture2D" uid="uid://ddbsy7ikhf8ey" path="res://Resources/Sprite/idle_right.png" id="5_bl8uq"]
 [ext_resource type="Texture2D" uid="uid://b01or75eyslub" path="res://Resources/Sprite/run_down_2.png" id="5_um0sn"]
@@ -153,6 +154,11 @@ script = ExtResource("2_yb8yl")
 
 [node name="YarnBallLauncher" type="Node" parent="." unique_id=1273939368]
 script = ExtResource("4_launcher")
+
+[node name="TrayStatus_Node" type="Node" parent="." unique_id=201001001]
+script = ExtResource("23_tray")
+
+[node name="StatusIndicator" type="StatusIndicator" parent="TrayStatus_Node" unique_id=201001002]
 
 [node name="CatSprite_AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=1835799935]
 sprite_frames = SubResource("SpriteFrames_ybq17")

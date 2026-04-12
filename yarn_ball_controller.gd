@@ -19,8 +19,14 @@ var window_size: Vector2
 var _sprite: Node2D
 ## 顶端反弹时至少保留的向下速度（像素/秒）。需足够大才能在被摩擦减到 0 前滚出顶部禁区（≈720px）
 @export var min_bounce_down_speed: float = 400.0
-## 顶部禁区高度（球心 y 小于此即算在顶部），用根视口高度（猫窗高度）
+## 顶部禁区高度（球心 y 小于此即算在顶部），随猫窗高度同步
 var _top_zone_height: float = 720.0
+
+var _roll_radius_base: float
+var _min_bounce_base: float
+var _kick_speed_base: float
+var _friction_base: float
+var _speed_stop_base: float
 
 func _enter_tree() -> void:
 	# 尽早启用，避免首帧以不透明背景清除再与系统透明窗叠加（GL 兼容下常见闪烁）
@@ -31,10 +37,34 @@ func _ready() -> void:
 	screen_size = DisplayServer.screen_get_size()
 	var win = get_window()
 	window_size = Vector2(win.size)
+	win.size_changed.connect(_on_ball_window_size_changed)
+	_roll_radius_base = roll_radius
+	_min_bounce_base = min_bounce_down_speed
+	_kick_speed_base = kick_speed
+	_friction_base = friction
+	_speed_stop_base = speed_stop_threshold
 	if get_tree().root != null:
 		_top_zone_height = float(get_tree().root.size.y)
 	if get_child_count() > 0:
 		_sprite = get_child(0)
+
+
+func _on_ball_window_size_changed() -> void:
+	window_size = Vector2(get_window().size)
+
+
+func apply_physics_scale(ratio: float) -> void:
+	ratio = maxf(ratio, 0.05)
+	roll_radius = _roll_radius_base * ratio
+	min_bounce_down_speed = _min_bounce_base * ratio
+	kick_speed = _kick_speed_base * ratio
+	friction = _friction_base * ratio
+	speed_stop_threshold = maxf(_speed_stop_base * ratio, 0.5)
+	window_size = Vector2(get_window().size)
+
+
+func set_top_zone_from_cat_height(cat_height: float) -> void:
+	_top_zone_height = cat_height
 
 func _process(delta: float) -> void:
 	_check_mouse_hover_kick()

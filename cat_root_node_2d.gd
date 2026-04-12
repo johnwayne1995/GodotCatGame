@@ -2,6 +2,9 @@ extends Node2D
 
 enum State { IDLE, RUN }
 
+## 设计基准：与 project 窗口默认尺寸一致，用于与毛线球窗口比例、整体缩放
+const BASE_CAT_WINDOW := 720.0
+
 # ---------------- 配置 ----------------
 var max_speed_x = 10.0
 var max_speed_y = 5.0
@@ -27,6 +30,13 @@ var window_size: Vector2
 var sprite: AnimatedSprite2D
 var yarn_ball_launcher: Node  # 用于获取毛线球中心位置
 
+var _base_follow_stop: float
+var _base_follow_resume: float
+var _base_slow_down: float
+var _base_follow_chase: float
+var _base_max_speed_x: float
+var _base_max_speed_y: float
+
 # ---------------- 初始化 ----------------
 func _ready():
 	randomize()
@@ -40,11 +50,43 @@ func _ready():
 	if yarn_ball_launcher == null:
 		push_warning("未找到 YarnBallLauncher，猫将不会跟随毛线球")
 
+	_base_follow_stop = follow_stop_distance
+	_base_follow_resume = follow_resume_distance
+	_base_slow_down = slow_down_distance
+	_base_follow_chase = follow_chase_speed
+	_base_max_speed_x = max_speed_x
+	_base_max_speed_y = max_speed_y
+
 	screen_size = DisplayServer.screen_get_size()
 	window_size = Vector2(get_window().size)
+	get_window().size_changed.connect(_on_window_size_changed)
 
 	state = State.RUN
 	target_speed = follow_chase_speed * 0.5
+
+	# 等毛线球窗口进入场景树并完成 _ready 后再同步比例，避免球脚本物理基准尚未初始化
+	call_deferred("apply_desktop_scale", get_window().size)
+
+
+func apply_desktop_scale(cat_size: Vector2i) -> void:
+	var ratio := float(cat_size.x) / BASE_CAT_WINDOW
+	ratio = maxf(ratio, 0.05)
+	get_window().size = cat_size
+	scale = Vector2(ratio, ratio)
+	follow_stop_distance = _base_follow_stop * ratio
+	follow_resume_distance = _base_follow_resume * ratio
+	slow_down_distance = _base_slow_down * ratio
+	follow_chase_speed = _base_follow_chase * ratio
+	max_speed_x = _base_max_speed_x * ratio
+	max_speed_y = _base_max_speed_y * ratio
+	window_size = Vector2(cat_size)
+	if yarn_ball_launcher != null and yarn_ball_launcher.has_method("apply_ball_scale_ratio"):
+		yarn_ball_launcher.apply_ball_scale_ratio(ratio)
+
+
+func _on_window_size_changed() -> void:
+	window_size = Vector2(get_window().size)
+
 
 func _process(delta):
 	update_behavior(delta)
