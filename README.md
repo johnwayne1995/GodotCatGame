@@ -9,7 +9,7 @@ Brings joy to your coding sessions
 Installation
 Download in Release by your plantform
 
-![gif]([Resources/cat by your side.gif)](https://github.com/johnwayne1995/GodotCatGame/blob/main/Resources/cat%20by%20your%20side.gif)
+![gif](Resources/cat_by_your_side.gif)
 
 [Release link](https://github.com/johnwayne1995/GodotCatGame/releases/tag/Release_Game)
 
